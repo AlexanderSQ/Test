@@ -276,3 +276,28 @@ SELECT
     END as Estado_Rotacion;
 )
 ORDER BY dp.permission_name;
+
+----
+
+
+
+-- Monitoreo continuo hasta que termine (ejecutar en OTRA ventana)
+DECLARE @SessionID INT = @@SPID; -- O el Session ID de tu rotación
+DECLARE @StartCheck DATETIME2(7) = SYSDATETIME();
+
+WHILE EXISTS (SELECT 1 FROM sys.dm_exec_requests WHERE session_id = @SessionID)
+BEGIN
+    WAITFOR DELAY '00:00:02'; -- Verificar cada 2 segundos
+END;
+
+-- CAPTURA EL MOMENTO EXACTO DE FINALIZACIÓN
+DECLARE @MomentoFin DATETIME2(7) = SYSDATETIME();
+
+PRINT '=== ROTACION FINALIZADA ===';
+PRINT 'Momento exacto de finalización: ' + CAST(@MomentoFin AS NVARCHAR(30));
+PRINT 'Última verificación iniciada: ' + CAST(@StartCheck AS NVARCHAR(30));
+
+SELECT 
+    @MomentoFin as Momento_Exacto_Finalizacion,
+    DATENAME(WEEKDAY, @MomentoFin) as Dia_Semana,
+    FORMAT(@MomentoFin, 'yyyy-MM-dd HH:mm:ss.fffffff') as Timestamp_Completo;
