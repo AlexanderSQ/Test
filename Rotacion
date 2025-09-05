@@ -256,5 +256,23 @@ WHERE dp.permission_name IN (
     'ALTER ANY COLUMN ENCRYPTION KEY',
     'VIEW ANY COLUMN MASTER KEY DEFINITION', 
     'VIEW ANY COLUMN ENCRYPTION KEY DEFINITION'
+
+
+---------
+
+
+-- Cambia 52 por TU Session ID real
+DECLARE @MiSessionID INT = 52;
+
+SELECT 
+    GETDATE() as Hora_Consulta,
+    CASE 
+        WHEN EXISTS (
+            SELECT 1 FROM sys.dm_exec_requests 
+            WHERE session_id = @MiSessionID
+        ) 
+        THEN 'ROTACION EN PROCESO - Sigue ejecutandose'
+        ELSE 'ROTACION TERMINADA - Revisar resultados'
+    END as Estado_Rotacion;
 )
 ORDER BY dp.permission_name;
