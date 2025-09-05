@@ -240,3 +240,21 @@ PRINT '- Las aplicaciones seguirán funcionando durante y después del proceso';
 
 PRINT '';
 PRINT 'Script de rotación CMK completado.';
+
+
+-----------
+
+
+SELECT 
+    dp.permission_name,
+    dp.permission_state_desc,
+    pr.name AS principal_name
+FROM sys.database_permissions dp
+    LEFT JOIN sys.database_principals pr ON dp.grantee_principal_id = pr.principal_id
+WHERE dp.permission_name IN (
+    'ALTER ANY COLUMN MASTER KEY',
+    'ALTER ANY COLUMN ENCRYPTION KEY',
+    'VIEW ANY COLUMN MASTER KEY DEFINITION', 
+    'VIEW ANY COLUMN ENCRYPTION KEY DEFINITION'
+)
+ORDER BY dp.permission_name;
