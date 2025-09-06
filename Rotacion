@@ -301,3 +301,54 @@ SELECT
     @MomentoFin as Momento_Exacto_Finalizacion,
     DATENAME(WEEKDAY, @MomentoFin) as Dia_Semana,
     FORMAT(@MomentoFin, 'yyyy-MM-dd HH:mm:ss.fffffff') as Timestamp_Completo;
+
+
+-----
+
+
+
+-- Buscar procesos activos relacionados con Always Encrypted
+SELECT 
+    r.session_id as SPID_Proceso,
+    r.command,
+    r.status,
+    r.total_elapsed_time/1000/60 as minutos_transcurridos,
+    r.percent_complete,
+    s.login_name,
+    s.program_name,
+    s.host_name,
+    SUBSTRING(t.text, 1, 100) as comando_actual
+FROM sys.dm_exec_requests r
+    INNER JOIN sys.dm_exec_sessions s ON r.session_id = s.session_id
+    CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) t
+WHERE r.command LIKE '%ALTER%'
+   OR t.text LIKE '%COLUMN%ENCRYPTION%KEY%'
+   OR t.text LIKE '%COLUMN%MASTER%KEY%'
+   OR r.command LIKE '%ENCRYPT%'
+ORDER BY r.total_elapsed_time DESC;
+-----
+-- Ver todas tus sesiones activas
+SELECT 
+    s.session_id as SPID,
+    r.command,
+    r.status,
+    r.total_elapsed_time/1000/60 as minutos_transcurridos,
+    s.login_time,
+    s.last_request_start_time,
+    CASE 
+        WHEN r.session_id IS NOT NULL THEN 'EJECUTANDO ALGO'
+        ELSE 'INACTIVO'
+    END as Estado,
+    CASE 
+        WHEN r.command LIKE '%ALTER%' THEN '*** POSIBLE ROTACION ***'
+        WHEN r.command LIKE '%SELECT%' THEN 'Consulta'
+        ELSE ISNULL(r.command, 'Sin actividad')
+    END as Tipo_Proceso
+FROM sys.dm_exec_sessions s
+    LEFT JOIN sys.dm_exec_requests r ON s.session_id = r.session_id
+WHERE s.login_name = SUSER_NAME()  -- Solo tus sesiones
+ORDER BY s.session_id;
+
+
+
+-----------------
