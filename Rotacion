@@ -348,7 +348,20 @@ FROM sys.dm_exec_sessions s
     LEFT JOIN sys.dm_exec_requests r ON s.session_id = r.session_id
 WHERE s.login_name = SUSER_NAME()  -- Solo tus sesiones
 ORDER BY s.session_id;
+------------
 
+
+SELECT
+    session_id,
+    transaction_id,
+    transaction_begin_time,
+    transaction_type,
+    transaction_state,
+    DATEDIFF(HOUR, transaction_begin_time, GETDATE()) as hours_open
+FROM sys.dm_tran_active_transactions t
+INNER JOIN sys.dm_tran_session_transactions s ON t.transaction_id = s.transaction_id
+WHERE DATEDIFF(HOUR, transaction_begin_time, GETDATE()) > 1
+ORDER BY transaction_begin_time;
 
 
 -----------------
