@@ -44,27 +44,24 @@ ERROR
 -----
 
 
-SELECT 
-    COLUMN_NAME,
-    DATA_TYPE,
-    CHARACTER_MAXIMUM_LENGTH,
-    IS_NULLABLE,
-    NUMERIC_PRECISION,
-    NUMERIC_SCALE
-FROM INFORMATION_SCHEMA.COLUMNS
-WHERE TABLE_SCHEMA = 'ntlc_functional_audit' 
-    AND TABLE_NAME = 'TB_FUNCTIONAL_AUDIT' 
-    AND COLUMN_NAME = 'CD_USER';
+-- 4. Ejecutar la rotación
+ALTER TABLE [ntlc_functional_audit].[TB_FUNCTIONAL_AUDIT]
+ALTER COLUMN CD_USER NVARCHAR(50) NULL
+ENCRYPTED WITH (
+    COLUMN_ENCRYPTION_KEY = [CEK_Auto1],
+    ENCRYPTION_TYPE = DETERMINISTIC,
+    ALGORITHM = 'AEAD_AES_256_CBC_HMAC_SHA_256'
+);
 
+-- 5. Restaurar timeout original
+SET LOCK_TIMEOUT -1;
 
---
-
+-- 6. Verificar que la rotación funcionó
 SELECT 
     t.name AS TableName,
     c.name AS ColumnName,
-    cek.name AS CurrentCEK,
-    c.encryption_type_desc,
-    c.encryption_algorithm_name
+    cek.name AS NewCEK,
+    c.encryption_type_desc
 FROM sys.tables t
     JOIN sys.columns c ON t.object_id = c.object_id
     JOIN sys.column_encryption_keys cek ON c.column_encryption_key_id = cek.column_encryption_key_id
