@@ -37,3 +37,37 @@ SELECT GETDATE() as CheckTime,
 FROM sys.column_encryption_key_values cekv
 JOIN sys.column_encryption_keys cek ON cekv.column_encryption_key_id = cek.column_encryption_key_id
 WHERE cek.name = 'CEK_Auto2';
+--
+
+----
+ERROR
+-----
+
+
+SELECT 
+    COLUMN_NAME,
+    DATA_TYPE,
+    CHARACTER_MAXIMUM_LENGTH,
+    IS_NULLABLE,
+    NUMERIC_PRECISION,
+    NUMERIC_SCALE
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA = 'ntlc_functional_audit' 
+    AND TABLE_NAME = 'TB_FUNCTIONAL_AUDIT' 
+    AND COLUMN_NAME = 'CD_USER';
+
+
+--
+
+SELECT 
+    t.name AS TableName,
+    c.name AS ColumnName,
+    cek.name AS CurrentCEK,
+    c.encryption_type_desc,
+    c.encryption_algorithm_name
+FROM sys.tables t
+    JOIN sys.columns c ON t.object_id = c.object_id
+    JOIN sys.column_encryption_keys cek ON c.column_encryption_key_id = cek.column_encryption_key_id
+WHERE t.name = 'TB_FUNCTIONAL_AUDIT' 
+    AND SCHEMA_NAME(t.schema_id) = 'ntlc_functional_audit'
+    AND c.name = 'CD_USER';
