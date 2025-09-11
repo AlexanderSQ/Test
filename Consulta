@@ -1,0 +1,113 @@
+-- ========================================================================
+-- SCRIPT 1: Mostrar todas las CMK y sus respectivos CEK relacionados
+-- ========================================================================
+
+SELECT 
+    cmk.name AS CMK_Name,
+    cmk.column_master_key_id,
+    cmk.key_store_provider_name,
+    cmk.key_path,
+    cmk.allow_enclave_computations,
+    cmk.signature,
+    cek.name AS CEK_Name,
+    cek.column_encryption_key_id,
+    cek.created_date AS CEK_Created_Date,
+    cek.modified_date AS CEK_Modified_Date,
+    cekv.encryption_algorithm_name,
+    cekv.encrypted_value,
+    cekv.column_encryption_key_ordinal
+FROM sys.column_master_keys cmk
+LEFT JOIN sys.column_encryption_key_values cekv 
+    ON cmk.column_master_key_id = cekv.column_master_key_id
+LEFT JOIN sys.column_encryption_keys cek 
+    ON cekv.column_encryption_key_id = cek.column_encryption_key_id
+ORDER BY cmk.name, cek.name;
+
+-- ========================================================================
+-- SCRIPT 2: CMK que utilizan Azure Key Vault (AKV)
+-- ========================================================================
+
+SELECT 
+    cmk.name AS CMK_Name,
+    cmk.column_master_key_id,
+    cmk.key_store_provider_name,
+    cmk.key_path,
+    cmk.allow_enclave_computations,
+    cmk.signature,
+    -- Extraer información específica de AKV del key_path
+    CASE 
+        WHEN cmk.key_path LIKE 'https://%' THEN 
+            SUBSTRING(cmk.key_path, 1, CHARINDEX('.vault.azure.net', cmk.key_path) + 17)
+        ELSE NULL 
+    END AS AKV_Vault_URL,
+    CASE 
+        WHEN cmk.key_path LIKE 'https://%' THEN 
+            RIGHT(cmk.key_path, LEN(cmk.key_path) - CHARINDEX('/keys/', cmk.key_path) - 5)
+        ELSE NULL 
+    END AS AKV_Key_Name
+FROM sys.column_master_keys cmk
+WHERE cmk.key_store_provider_name = 'AZURE_KEY_VAULT'
+   OR cmk.key_path LIKE 'https://%.vault.azure.net/%'
+ORDER BY cmk.name;
+
+-- ========================================================================
+-- SCRIPT 3: Vista completa - CMK de AKV con sus CEK relacionados
+-- ========================================================================
+
+SELECT 
+    cmk.name AS CMK_Name,
+    cmk.key_store_provider_name,
+    cmk.key_path,
+    cmk.allow_enclave_computations,
+    -- Información de AKV
+    CASE 
+        WHEN cmk.key_path LIKE 'https://%' THEN 
+            SUBSTRING(cmk.key_path, 9, CHARINDEX('.vault.azure.net', cmk.key_path) - 9)
+        ELSE NULL 
+    END AS AKV_Vault_Name,
+    CASE 
+        WHEN cmk.key_path LIKE 'https://%' THEN 
+            RIGHT(cmk.key_path, LEN(cmk.key_path) - CHARINDEX('/keys/', cmk.key_path) - 5)
+        ELSE NULL 
+    END AS AKV_Key_Name,
+    -- Información de CEK relacionados
+    cek.name AS CEK_Name,
+    cek.created_date AS CEK_Created_Date,
+    cekv.encryption_algorithm_name,
+    -- Contar CEK asociados
+    COUNT(cek.column_encryption_key_id) OVER (PARTITION BY cmk.column_master_key_id) AS Total_CEK_Associated
+FROM sys.column_master_keys cmk
+LEFT JOIN sys.column_encryption_key_values cekv 
+    ON cmk.column_master_key_id = cekv.column_master_key_id
+LEFT JOIN sys.column_encryption_keys cek 
+    ON cekv.column_encryption_key_id = cek.column_encryption_key_id
+WHERE cmk.key_store_provider_name = 'AZURE_KEY_VAULT'
+   OR cmk.key_path LIKE 'https://%.vault.azure.net/%'
+ORDER BY cmk.name, cek.name;
+
+-- ========================================================================
+-- SCRIPT 4: Información adicional útil
+-- ========================================================================
+
+-- Resumen de tipos de proveedores de CMK
+SELECT 
+    key_store_provider_name,
+    COUNT(*) as Total_CMK
+FROM sys.column_master_keys 
+GROUP BY key_store_provider_name;
+
+-- Columnas que utilizan Always Encrypted
+SELECT 
+    SCHEMA_NAME(t.schema_id) AS schema_name,
+    t.name AS table_name,
+    c.name AS column_name,
+    c.encryption_type_desc,
+    cek.name AS CEK_name,
+    cmk.name AS CMK_name
+FROM sys.columns c
+INNER JOIN sys.tables t ON c.object_id = t.object_id
+INNER JOIN sys.column_encryption_keys cek ON c.column_encryption_key_id = cek.column_encryption_key_id
+INNER JOIN sys.column_encryption_key_values cekv ON cek.column_encryption_key_id = cekv.column_encryption_key_id
+INNER JOIN sys.column_master_keys cmk ON cekv.column_master_key_id = cmk.column_master_key_id
+WHERE c.encryption_type IS NOT NULL
+ORDER BY schema_name, table_name, column_name;
