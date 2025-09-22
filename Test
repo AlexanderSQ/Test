@@ -10,6 +10,6 @@ INNER JOIN sys.column_master_keys cmk ON cekv.column_master_key_id = cmk.column_
 ORDER BY cek.name, cmk.name;
 
 
--- Eliminar el valor viejo protegido por CMK_FUNCTIONAL_AUDIT
+-- Sintaxis alternativa sin ENCRYPTED BY
 ALTER COLUMN ENCRYPTION KEY [CEK_FUNCTIONAL_AUDIT]
-DROP VALUE ENCRYPTED BY COLUMN MASTER KEY [CMK_FUNCTIONAL_AUDIT];
+DROP VALUE (COLUMN_MASTER_KEY = [CMK_FUNCTIONAL_AUDIT]);
