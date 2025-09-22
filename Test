@@ -8,3 +8,8 @@ FROM sys.column_encryption_keys cek
 INNER JOIN sys.column_encryption_key_values cekv ON cek.column_encryption_key_id = cekv.column_encryption_key_id
 INNER JOIN sys.column_master_keys cmk ON cekv.column_master_key_id = cmk.column_master_key_id
 ORDER BY cek.name, cmk.name;
+
+
+-- Eliminar el valor viejo protegido por CMK_FUNCTIONAL_AUDIT
+ALTER COLUMN ENCRYPTION KEY [CEK_FUNCTIONAL_AUDIT]
+DROP VALUE ENCRYPTED BY COLUMN MASTER KEY [CMK_FUNCTIONAL_AUDIT];
