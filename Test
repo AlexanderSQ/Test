@@ -1,0 +1,10 @@
+-- Script para auditar TODAS las CEKs
+SELECT 
+    cek.name AS cek_name,
+    cmk.name AS cmk_protecting_it,
+    cekv.encryption_algorithm_name,
+    COUNT(*) OVER (PARTITION BY cek.name) AS total_values_for_this_cek
+FROM sys.column_encryption_keys cek
+INNER JOIN sys.column_encryption_key_values cekv ON cek.column_encryption_key_id = cekv.column_encryption_key_id
+INNER JOIN sys.column_master_keys cmk ON cekv.column_master_key_id = cmk.column_master_key_id
+ORDER BY cek.name, cmk.name;
