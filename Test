@@ -1,15 +1,21 @@
--- Script para auditar TODAS las CEKs
-SELECT 
-    cek.name AS cek_name,
-    cmk.name AS cmk_protecting_it,
-    cekv.encryption_algorithm_name,
-    COUNT(*) OVER (PARTITION BY cek.name) AS total_values_for_this_cek
-FROM sys.column_encryption_keys cek
-INNER JOIN sys.column_encryption_key_values cekv ON cek.column_encryption_key_id = cekv.column_encryption_key_id
-INNER JOIN sys.column_master_keys cmk ON cekv.column_master_key_id = cmk.column_master_key_id
-ORDER BY cek.name, cmk.name;
-
-
--- Sintaxis alternativa sin ENCRYPTED BY
-ALTER COLUMN ENCRYPTION KEY [CEK_FUNCTIONAL_AUDIT]
-DROP VALUE (COLUMN_MASTER_KEY = [CMK_FUNCTIONAL_AUDIT]);
+-- Consulta para obtener tablas afectadas por CMK_Auto1
+SELECT DISTINCT
+    s.name AS EsquemaTabla,
+    t.name AS NombreTabla,
+    cek.name AS NombreCEK
+FROM 
+    sys.column_master_keys cmk
+    INNER JOIN sys.column_encryption_keys cek 
+        ON cmk.column_master_key_id = cek.column_master_key_id
+    INNER JOIN sys.column_encryption_key_values cekv 
+        ON cek.column_encryption_key_id = cekv.column_encryption_key_id
+    INNER JOIN sys.columns c 
+        ON cekv.column_encryption_key_id = c.column_encryption_key_id
+    INNER JOIN sys.tables t 
+        ON c.object_id = t.object_id
+    INNER JOIN sys.schemas s 
+        ON t.schema_id = s.schema_id
+WHERE 
+    cmk.name = 'CMK_Auto1'
+ORDER BY 
+    s.name, t.name, cek.name;
