@@ -42,16 +42,4 @@ ORDER BY
 
 --Azure
 
-# Reemplaza con tu Key Vault real
-$vaultName = "miempresa-keyvault-prod"
-$cutoffDate = (Get-Date).AddYears(-5)
-$keys = Get-AzKeyVaultKey -VaultName $vaultName
-
-$oldKeys = $keys | Where-Object { 
-    $_.Created -lt $cutoffDate -or $_.Updated -lt $cutoffDate 
-} | Select-Object Name, Created, Updated, Enabled
-
-$oldKeys | Export-Csv "keys-antiguas.csv" -NoTypeInformation
-
-# Ver resultados en pantalla
-$oldKeys
+Get-AzKeyVaultKey -VaultName "<nombre-del-keyvault>" | Select-Object Name, Created, Updated | Format-Table -AutoSize
