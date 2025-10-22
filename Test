@@ -38,3 +38,20 @@ WHERE
     cek.name = 'CEK_Auto1'
 ORDER BY 
     s.name, t.name, c.name;
+
+
+--Azure
+
+# Reemplaza con tu Key Vault real
+$vaultName = "miempresa-keyvault-prod"
+$cutoffDate = (Get-Date).AddYears(-5)
+$keys = Get-AzKeyVaultKey -VaultName $vaultName
+
+$oldKeys = $keys | Where-Object { 
+    $_.Created -lt $cutoffDate -or $_.Updated -lt $cutoffDate 
+} | Select-Object Name, Created, Updated, Enabled
+
+$oldKeys | Export-Csv "keys-antiguas.csv" -NoTypeInformation
+
+# Ver resultados en pantalla
+$oldKeys
