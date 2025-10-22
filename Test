@@ -1,4 +1,3 @@
--- Consulta para obtener tablas afectadas por CMK_Auto1
 SELECT DISTINCT
     s.name AS EsquemaTabla,
     t.name AS NombreTabla,
@@ -10,7 +9,7 @@ FROM
     INNER JOIN sys.column_encryption_key_values cekv 
         ON cek.column_encryption_key_id = cekv.column_encryption_key_id
     INNER JOIN sys.columns c 
-        ON cekv.column_encryption_key_id = c.column_encryption_key_id
+        ON c.column_encryption_key_id = cekv.column_encryption_key_id
     INNER JOIN sys.tables t 
         ON c.object_id = t.object_id
     INNER JOIN sys.schemas s 
