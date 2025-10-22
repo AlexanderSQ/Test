@@ -4,12 +4,12 @@ SELECT DISTINCT
     cek.name AS NombreCEK
 FROM 
     sys.column_master_keys cmk
-    INNER JOIN sys.column_encryption_keys cek 
-        ON cmk.column_master_key_id = cek.column_master_key_id
     INNER JOIN sys.column_encryption_key_values cekv 
-        ON cek.column_encryption_key_id = cekv.column_encryption_key_id
+        ON cmk.column_master_key_id = cekv.column_master_key_id
+    INNER JOIN sys.column_encryption_keys cek 
+        ON cekv.column_encryption_key_id = cek.column_encryption_key_id
     INNER JOIN sys.columns c 
-        ON c.column_encryption_key_id = cekv.column_encryption_key_id
+        ON c.column_encryption_key_id = cek.column_encryption_key_id
     INNER JOIN sys.tables t 
         ON c.object_id = t.object_id
     INNER JOIN sys.schemas s 
