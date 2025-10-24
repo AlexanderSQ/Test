@@ -1,70 +1,76 @@
--- Verificar estado inicial
-SELECT 
-    cmk.name AS MasterKey,
-    cek.name AS ColumnKey,
-    COUNT(*) as ValueCount
-FROM sys.column_master_keys cmk
-JOIN sys.column_encryption_key_values cekv ON cmk.column_master_key_id = cekv.column_master_key_id
-JOIN sys.column_encryption_keys cek ON cekv.column_encryption_key_id = cek.column_encryption_key_id
-WHERE cmk.name = 'CMK_Auto2'
-GROUP BY cmk.name, cek.name;
-
----
 
 
-SELECT 
-    cek.name AS ColumnKey,
-    COUNT(*) as ValueCount,
-    STRING_AGG(cmk.name, ', ') AS MasterKeys
+SET NOCOUNT ON;
+
+;WITH CMK_List AS (
+    -- Obtener todas las CMKs
+    SELECT 
+        cmk.name AS CMK_Name,
+        cmk.column_master_key_id AS CMK_ID
+    FROM sys.column_master_keys cmk
+),
+CEK_CMK AS (
+    -- Obtener CEKs y su relación con CMKs
+    SELECT 
+        cek.name AS CEK_Name,
+        cek.column_encryption_key_id AS CEK_ID,
+        cmk.CMK_Name,
+        cmk.CMK_ID
+    FROM sys.column_encryption_keys cek
+    INNER JOIN sys.column_encryption_key_values cekv 
+        ON cek.column_encryption_key_id = cekv.column_encryption_key_id
+    INNER JOIN CMK_List cmk 
+        ON cekv.column_master_key_id = cmk.CMK_ID
+),
+Tables_CEK AS (
+    -- Obtener tablas relacionadas con CEKs
+    SELECT DISTINCT
+        cek.CEK_Name,
+        SCHEMA_NAME(t.schema_id) + '.' + t.name AS Table_Name
+    FROM sys.columns c
+    INNER JOIN sys.tables t 
+        ON c.object_id = t.object_id
+    INNER JOIN sys.column_encryption_keys cek_sys 
+        ON c.column_encryption_key_id = cek_sys.column_encryption_key_id
+    INNER JOIN CEK_CMK cek 
+        ON cek_sys.column_encryption_key_id = cek.CEK_ID
+    WHERE c.column_encryption_key_id IS NOT NULL
+),
+AllCEKs AS (
+    -- Todas las CEKs (con y sin CMK)
+    SELECT 
+        cek.name AS CEK_Name,
+        cek.column_encryption_key_id AS CEK_ID,
+        ISNULL(cmk.CMK_Name, '') AS CMK_Name
+    FROM sys.column_encryption_keys cek
+    LEFT JOIN sys.column_encryption_key_values cekv 
+        ON cek.column_encryption_key_id = cekv.column_encryption_key_id
+    LEFT JOIN CMK_List cmk 
+        ON cekv.column_master_key_id = cmk.CMK_ID
+)
+-- Consulta final
+SELECT DISTINCT
+    ISNULL(cmk.CMK_Name, '') AS [CMK],
+    ISNULL(cek.CEK_Name, '') AS [CEK],
+    ISNULL(tc.Table_Name, '') AS [Tabla]
+FROM CMK_List cmk
+FULL OUTER JOIN AllCEKs cek 
+    ON cmk.CMK_Name = cek.CMK_Name
+LEFT JOIN Tables_CEK tc 
+    ON cek.CEK_Name = tc.CEK_Name
+
+UNION
+
+-- Incluir CEKs sin CMK
+SELECT DISTINCT
+    '' AS [CMK],
+    cek.name AS [CEK],
+    ISNULL(tc.Table_Name, '') AS [Tabla]
 FROM sys.column_encryption_keys cek
-JOIN sys.column_encryption_key_values cekv ON cek.column_encryption_key_id = cekv.column_encryption_key_id
-JOIN sys.column_master_keys cmk ON cekv.column_master_key_id = cmk.column_master_key_id
-WHERE cek.name = 'CEK_Auto2'
-GROUP BY cek.name;
+LEFT JOIN sys.column_encryption_key_values cekv 
+    ON cek.column_encryption_key_id = cekv.column_encryption_key_id
+LEFT JOIN Tables_CEK tc 
+    ON cek.name = tc.CEK_Name
+WHERE cekv.column_encryption_key_id IS NULL
 
-
-----
-
-
--- Si queda valor duplicado, limpiar manualmente
-ALTER COLUMN ENCRYPTION KEY [CEK_Auto2] 
-DROP VALUE (COLUMN_MASTER_KEY = [CMK_Auto2]);
-
---
-
-SELECT GETDATE() as CheckTime, 
-       COUNT(*) as CEK_ValueCount
-FROM sys.column_encryption_key_values cekv
-JOIN sys.column_encryption_keys cek ON cekv.column_encryption_key_id = cek.column_encryption_key_id
-WHERE cek.name = 'CEK_Auto2';
---
-
-----
-ERROR
------
-
-
--- 4. Ejecutar la rotación
-ALTER TABLE [ntlc_functional_audit].[TB_FUNCTIONAL_AUDIT]
-ALTER COLUMN CD_USER NVARCHAR(50) NULL
-ENCRYPTED WITH (
-    COLUMN_ENCRYPTION_KEY = [CEK_Auto1],
-    ENCRYPTION_TYPE = DETERMINISTIC,
-    ALGORITHM = 'AEAD_AES_256_CBC_HMAC_SHA_256'
-);
-
--- 5. Restaurar timeout original
-SET LOCK_TIMEOUT -1;
-
--- 6. Verificar que la rotación funcionó
-SELECT 
-    t.name AS TableName,
-    c.name AS ColumnName,
-    cek.name AS NewCEK,
-    c.encryption_type_desc
-FROM sys.tables t
-    JOIN sys.columns c ON t.object_id = c.object_id
-    JOIN sys.column_encryption_keys cek ON c.column_encryption_key_id = cek.column_encryption_key_id
-WHERE t.name = 'TB_FUNCTIONAL_AUDIT' 
-    AND SCHEMA_NAME(t.schema_id) = 'ntlc_functional_audit'
-    AND c.name = 'CD_USER';
+ORDER BY [CMK], [CEK], [Tabla];
