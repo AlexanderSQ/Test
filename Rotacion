@@ -1,12 +1,31 @@
 
-
 SET NOCOUNT ON;
 
 ;WITH CMK_List AS (
-    -- Obtener todas las CMKs
+    -- Obtener todas las CMKs con su key_path
     SELECT 
         cmk.name AS CMK_Name,
-        cmk.column_master_key_id AS CMK_ID
+        cmk.column_master_key_id AS CMK_ID,
+        cmk.key_path AS Key_Path,
+        CASE 
+            WHEN cmk.key_path LIKE '%vault.azure.net%' THEN 
+                SUBSTRING(
+                    cmk.key_path, 
+                    CHARINDEX('/', cmk.key_path, CHARINDEX('vault.azure.net', cmk.key_path)) + 1,
+                    CHARINDEX('/', cmk.key_path, CHARINDEX('/', cmk.key_path, CHARINDEX('vault.azure.net', cmk.key_path)) + 1) - 
+                    CHARINDEX('/', cmk.key_path, CHARINDEX('vault.azure.net', cmk.key_path)) - 1
+                )
+            ELSE ''
+        END AS Azure_Key_Name,
+        CASE 
+            WHEN cmk.key_path LIKE '%vault.azure.net%' THEN 
+                SUBSTRING(
+                    cmk.key_path, 
+                    CHARINDEX('https://', cmk.key_path) + 8,
+                    CHARINDEX('.vault.azure.net', cmk.key_path) - CHARINDEX('https://', cmk.key_path) - 8
+                )
+            ELSE ''
+        END AS Key_Vault_Name
     FROM sys.column_master_keys cmk
 ),
 CEK_CMK AS (
@@ -15,7 +34,10 @@ CEK_CMK AS (
         cek.name AS CEK_Name,
         cek.column_encryption_key_id AS CEK_ID,
         cmk.CMK_Name,
-        cmk.CMK_ID
+        cmk.CMK_ID,
+        cmk.Key_Path,
+        cmk.Azure_Key_Name,
+        cmk.Key_Vault_Name
     FROM sys.column_encryption_keys cek
     INNER JOIN sys.column_encryption_key_values cekv 
         ON cek.column_encryption_key_id = cekv.column_encryption_key_id
@@ -41,7 +63,10 @@ AllCEKs AS (
     SELECT 
         cek.name AS CEK_Name,
         cek.column_encryption_key_id AS CEK_ID,
-        ISNULL(cmk.CMK_Name, '') AS CMK_Name
+        ISNULL(cmk.CMK_Name, '') AS CMK_Name,
+        ISNULL(cmk.Key_Path, '') AS Key_Path,
+        ISNULL(cmk.Azure_Key_Name, '') AS Azure_Key_Name,
+        ISNULL(cmk.Key_Vault_Name, '') AS Key_Vault_Name
     FROM sys.column_encryption_keys cek
     LEFT JOIN sys.column_encryption_key_values cekv 
         ON cek.column_encryption_key_id = cekv.column_encryption_key_id
@@ -51,6 +76,9 @@ AllCEKs AS (
 -- Consulta final
 SELECT DISTINCT
     ISNULL(cmk.CMK_Name, '') AS [CMK],
+    ISNULL(cmk.Key_Vault_Name, '') AS [Key_Vault],
+    ISNULL(cmk.Azure_Key_Name, '') AS [Azure_Key],
+    ISNULL(cmk.Key_Path, '') AS [Key_Path],
     ISNULL(cek.CEK_Name, '') AS [CEK],
     ISNULL(tc.Table_Name, '') AS [Tabla]
 FROM CMK_List cmk
@@ -64,6 +92,9 @@ UNION
 -- Incluir CEKs sin CMK
 SELECT DISTINCT
     '' AS [CMK],
+    '' AS [Key_Vault],
+    '' AS [Azure_Key],
+    '' AS [Key_Path],
     cek.name AS [CEK],
     ISNULL(tc.Table_Name, '') AS [Tabla]
 FROM sys.column_encryption_keys cek
